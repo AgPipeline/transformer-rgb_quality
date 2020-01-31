@@ -9,9 +9,12 @@ import numpy as np
 import gdal
 
 from terrautils.formats import create_geotiff
+import terrautils.lemnatec
 
 import configuration
 import transformer_class
+
+terrautils.lemnatec.SENSOR_METADATA_CACHE = os.path.dirname(os.path.realpath(__file__))
 
 # Image filename checking definitions
 IMAGE_FILENAME_END = ".tif"
@@ -23,17 +26,18 @@ class __internal__:
         """Initializes class instance"""
 
     @staticmethod
-    def get_file_to_process(file_list: list) -> Optional[str]:
+    def get_files_to_process(file_list: list) -> list:
         """Returns the name of the file to load from the list of files
         Arguments:
             file_list: the list of file names to look through
         Return:
-            Returns the first found file that matches the searching criteria
+            Returns the files that match the searching criteria
         """
+        image_files = []
         for one_file in file_list:
             if one_file.endswith(IMAGE_FILENAME_END):
-                return one_file
-        return None
+                image_files.append(one_file)
+        return image_files
 
     @staticmethod
     # main function: Multiscale Autocorrelation (MAC)
@@ -104,7 +108,7 @@ def check_continue(transformer: transformer_class.Transformer, check_md: dict, t
         an error message if there's an error
     """
     # pylint: disable=unused-argument
-    if not __internal__.get_file_to_process(check_md['list_files']()):
+    if not __internal__.get_files_to_process(check_md['list_files']()):
         return -1, "No supported image files were specified for processing"
     return tuple([0])
 
@@ -123,22 +127,30 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     start_timestamp = datetime.datetime.now()
     all_files = check_md['list_files']()
     total_file_count = len(all_files)
-    files_to_process = __internal__.get_file_to_process(all_files)
+    files_to_process = __internal__.get_files_to_process(all_files)
 
     file_md = []
     num_image_files = 0
     num_processed_files = 0
     for one_file in files_to_process:
+        logging.debug("Processing file: '%s'", one_file)
         num_image_files += 1
+
+        if not os.path.exists(one_file):
+            logging.error("Unable to access file: '%s'. Continuing processing", one_file)
+            continue
 
         try:
             quality_value = __internal__.get_image_quality(one_file)
             image_bounds = transformer.get_image_file_geobounds(one_file)
+            quality_image_bounds = (image_bounds[2], image_bounds[3], image_bounds[0], image_bounds[1])
 
-            mac_file_name = os.path.join(check_md['working_folder'], os.path.splitext(os.path.basename(one_file)) + '_mac.tif')
+            mac_file_name = os.path.join(check_md['working_folder'], os.path.splitext(os.path.basename(one_file))[0] + '_mac.tif')
 
-            create_geotiff(np.array([[quality_value, quality_value], [quality_value, quality_value]]), image_bounds,
-                           mac_file_name, None, True, transformer.generate_transformer_md, full_md[0], compress=True)
+            logging.info("MAC score %s for file '%s'", str(quality_value), one_file)
+            logging.debug("Creating quality image: bounds %s  name: '%s'", str(quality_image_bounds), mac_file_name)
+            create_geotiff(np.array([[quality_value, quality_value], [quality_value, quality_value]]), quality_image_bounds,
+                           mac_file_name, None, True, transformer.generate_transformer_md(), full_md[0], compress=True)
 
             num_processed_files += 1
             file_md.append(
@@ -157,6 +169,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
         except Exception as ex:
             logging.warning("Ignoring exception caught processing image file '%s'", one_file)
             logging.debug("Exception: %s", str(ex))
+            logging.exception('broken')
 
     return {'code': 0,
             'files': file_md,

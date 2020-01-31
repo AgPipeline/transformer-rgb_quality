@@ -11,7 +11,7 @@ TRANSFORMER_DESCRIPTION = 'Stereo RGB No-Reference Multiscale Autocorrelation'
 TRANSFORMER_NAME = 'terra.stereo-rgb.nrmac'
 
 # The sensor associated with the transformer
-TRANSFORMER_SENSOR = 'rgb_nrmac'
+TRANSFORMER_SENSOR = 'stereoTop'
 
 # The transformer type (eg: 'rgbmask', 'plotclipper')
 TRANSFORMER_TYPE = 'quality metric'
