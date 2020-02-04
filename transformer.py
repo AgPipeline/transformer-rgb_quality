@@ -160,6 +160,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
                     'metadata': {
                         'replace': True,
                         'data': {
+                            'MAC score': str(quality_value),
                             'utc_timestamp': datetime.datetime.utcnow().isoformat(),
                             'source_file': one_file
                         }
